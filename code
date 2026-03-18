@@ -1,0 +1,147 @@
+#include <WiFi.h>
+#include <Wire.h>
+#include <time.h>
+
+// ===============================
+//        WIFI CREDENTIALS
+// ===============================
+const char* ssid = "OnePlus Nord T";      
+const char* password = "12121213";
+
+// ===============================
+//        TIME SETTINGS
+// ===============================
+
+// NTP server (gets real time from internet)
+const char* ntpServer = "pool.ntp.org";
+
+// India timezone = GMT +5:30
+// 5.5 hours × 3600 seconds = 19800
+const long gmtOffset_sec = 19800;
+
+// India does not use Daylight Saving Time
+const int daylightOffset_sec = 0;
+
+// ===============================
+//        OLED SETTINGS
+// ===============================
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// I2C OLED address usually 0x3C
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+// ===============================
+//        LCD SETTINGS
+// ===============================
+#include <LiquidCrystal_I2C.h>
+
+// Change 0x27 if your LCD address is different
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// ===============================
+//              SETUP
+// ===============================
+void setup() {
+
+  Serial.begin(115200);
+
+  // Connect to WiFi
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nWiFi Connected!");
+
+  // Configure time using NTP
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+  // Initialize OLED
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("OLED not found");
+  }
+
+  display.clearDisplay();
+
+  // Initialize LCD
+  lcd.init();
+  lcd.backlight();
+}
+
+// ===============================
+//               LOOP
+// ===============================
+void loop() {
+
+  struct tm timeinfo;
+
+  // Get local time
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Failed to get time");
+    return;
+  }
+
+  // ===============================
+  //   FORMAT TIME (12-HOUR + AM/PM)
+  // ===============================
+
+  char timeString[15];
+  char dateString[20];
+  char dayString[5];
+
+  // 12-hour format with AM/PM
+  strftime(timeString, sizeof(timeString), "%I:%M:%S%p", &timeinfo);
+
+  // Date format (DD/MM/YYYY)
+  strftime(dateString, sizeof(dateString), "%d/%m/%Y", &timeinfo);
+
+  // 3-letter day format (Mon, Tue, Wed...)
+  strftime(dayString, sizeof(dayString), "%a", &timeinfo);
+
+  // ===============================
+  //          OLED DISPLAY
+  // ===============================
+
+  display.clearDisplay();
+
+  // Big Time
+  display.setTextSize(2);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(5, 10);
+  display.print(timeString);
+
+  // Small Date + Day
+  display.setTextSize(1);
+  display.setCursor(15, 45);
+  display.print(dayString);
+  display.print(" ");
+  display.print(dateString);
+
+  display.display();
+
+  // ===============================
+  //          LCD DISPLAY
+  // ===============================
+
+  lcd.clear();
+
+  // Line 1 → Time
+  lcd.setCursor(0, 0);
+  lcd.print(timeString);
+
+  // Line 2 → Day + Date
+  lcd.setCursor(0, 1);
+  lcd.print(dayString);
+  lcd.print(" ");
+  lcd.print(dateString);
+
+  // Update every second
+  delay(1000);
+}
